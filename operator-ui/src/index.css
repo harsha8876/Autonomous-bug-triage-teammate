@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+#root { min-height: 100vh; }
+body {
+  font-family: 'Geist', system-ui, sans-serif;
+  background: #CCD5AE;
+  -webkit-font-smoothing: antialiased;
+  color: #3A3528;
+}
+::selection { background: rgba(212,163,115,0.4); }
+textarea::placeholder, input::placeholder { color: #A8A488; }
+
+@keyframes opspin { to { transform: rotate(360deg); } }
+@keyframes opfade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(61,58,46,0.18); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

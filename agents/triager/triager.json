@@ -1,0 +1,26 @@
+{
+  "name": "triager",
+  "description": "Reads a raw bug report from the feedback table and writes a structured triage result to the issues table — severity, component, repro steps, reasoning, and confidence.",
+  "instruction": { "$file": "instruction.md" },
+  "toolsets": ["POD"],
+  "visibility": "POD",
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "feedback",
+      "permission_ids": [
+        "datastore.table.read",
+        "datastore.record.read"
+      ]
+    },
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "issues",
+      "permission_ids": [
+        "datastore.table.read",
+        "datastore.record.read",
+        "datastore.record.write"
+      ]
+    }
+  ] }
+}

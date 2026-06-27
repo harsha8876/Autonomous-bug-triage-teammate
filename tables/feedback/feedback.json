@@ -1,0 +1,14 @@
+{
+  "name": "feedback",
+  "primary_key_column": "id",
+  "enable_rls": false,
+  "visibility": "POD",
+  "columns": [
+    { "name": "raw_text", "type": "TEXT", "required": true },
+    { "name": "source", "type": "ENUM", "required": true, "default": "manual",
+      "options": ["manual", "github", "slack", "email"] },
+    { "name": "status", "type": "ENUM", "required": true, "default": "pending",
+      "options": ["pending", "triaged", "duplicate", "dismissed"] }
+  ],
+  "config": {}
+}

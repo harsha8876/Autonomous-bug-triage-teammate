@@ -1,0 +1,17 @@
+{
+  "name": "dedup-confirmer",
+  "description": "Given a new bug report and a candidate existing issue, decides if the new report is a duplicate and explains why.",
+  "instruction": { "$file": "instruction.md" },
+  "toolsets": ["POD"],
+  "visibility": "POD",
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "issues",
+      "permission_ids": [
+        "datastore.table.read",
+        "datastore.record.read"
+      ]
+    }
+  ] }
+}

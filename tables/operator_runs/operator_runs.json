@@ -1,0 +1,14 @@
+{
+  "name": "operator_runs",
+  "primary_key_column": "id",
+  "enable_rls": false,
+  "visibility": "POD",
+  "columns": [
+    { "name": "action", "type": "ENUM", "required": true,
+      "options": ["triaged", "duplicate_found", "approved", "rejected", "github_issue_created", "release_notes_drafted"] },
+    { "name": "detail", "type": "TEXT", "required": false },
+    { "name": "feedback_id", "type": "UUID", "required": false },
+    { "name": "issue_id", "type": "UUID", "required": false }
+  ],
+  "config": {}
+}

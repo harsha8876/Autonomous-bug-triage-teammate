@@ -1,0 +1,77 @@
+{
+  "name": "triage",
+  "description": "Triages incoming bug reports: classifies severity, detects duplicates, routes to human approval, then creates a GitHub issue.",
+  "start": { "type": "MANUAL" },
+  "nodes": [
+    {
+      "id": "intake",
+      "type": "FORM",
+      "label": "Bug Report Intake",
+      "config": {
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "raw_text": { "type": "string" },
+            "source": { "type": "string", "enum": ["manual", "github", "slack", "email"] }
+          },
+          "required": ["raw_text"]
+        }
+      }
+    },
+    {
+      "id": "triage_agent",
+      "type": "AGENT",
+      "label": "Triage Bug Report",
+      "config": {
+        "agent_name": "triager",
+        "input_mapping": {
+          "message": {
+            "type": "expression",
+            "value": "intake.raw_text"
+          }
+        }
+      }
+    },
+    {
+      "id": "dedup_check",
+      "type": "AGENT",
+      "label": "Check for Duplicates",
+      "config": {
+        "agent_name": "dedup-confirmer",
+        "input_mapping": {
+          "message": {
+            "type": "expression",
+            "value": "intake.raw_text"
+          }
+        }
+      }
+    },
+    {
+      "id": "approval",
+      "type": "FORM",
+      "label": "Human Approval",
+      "config": {
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "decision": { "type": "string", "enum": ["approve", "reject"] },
+            "note": { "type": "string" }
+          },
+          "required": ["decision"]
+        }
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "label": "Done"
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "intake", "target": "triage_agent" },
+    { "id": "e2", "source": "triage_agent", "target": "dedup_check" },
+    { "id": "e3", "source": "dedup_check", "target": "approval" },
+    { "id": "e4", "source": "approval", "target": "end" }
+  ],
+  "visibility": "POD"
+}

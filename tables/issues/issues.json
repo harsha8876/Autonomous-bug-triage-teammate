@@ -1,0 +1,24 @@
+{
+  "name": "issues",
+  "primary_key_column": "id",
+  "enable_rls": false,
+  "visibility": "POD",
+  "columns": [
+    { "name": "title", "type": "TEXT", "required": true },
+    { "name": "severity", "type": "ENUM", "required": true, "default": "P2",
+      "options": ["P0", "P1", "P2", "P3"] },
+    { "name": "component", "type": "TEXT", "required": false },
+    { "name": "repro_steps", "type": "JSON", "required": false },
+    { "name": "labels", "type": "JSON", "required": false },
+    { "name": "reasoning", "type": "TEXT", "required": false },
+    { "name": "confidence", "type": "FLOAT", "required": false },
+    { "name": "status", "type": "ENUM", "required": true, "default": "triage",
+      "options": ["triage", "approved", "rejected", "created", "duplicate"] },
+    { "name": "github_issue_number", "type": "INTEGER", "required": false },
+    { "name": "duplicate_of", "type": "INTEGER", "required": false },
+    { "name": "similarity_score", "type": "FLOAT", "required": false },
+    { "name": "feedback_id", "type": "UUID", "required": false,
+      "foreign_key": { "references": "feedback.id" } }
+  ],
+  "config": {}
+}
