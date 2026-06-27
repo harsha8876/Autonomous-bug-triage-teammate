@@ -12,6 +12,14 @@
         "datastore.table.read",
         "datastore.record.read"
       ]
+    },
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "operator_runs",
+      "permission_ids": [
+        "datastore.table.read",
+        "datastore.record.write"
+      ]
     }
   ] }
 }

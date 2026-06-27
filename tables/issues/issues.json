@@ -13,7 +13,7 @@
     { "name": "reasoning", "type": "TEXT", "required": false },
     { "name": "confidence", "type": "FLOAT", "required": false },
     { "name": "status", "type": "ENUM", "required": true, "default": "triage",
-      "options": ["triage", "approved", "rejected", "created", "duplicate"] },
+      "options": ["triage", "approved", "in_progress", "done", "rejected", "duplicate"] },
     { "name": "github_issue_number", "type": "INTEGER", "required": false },
     { "name": "duplicate_of", "type": "INTEGER", "required": false },
     { "name": "similarity_score", "type": "FLOAT", "required": false },
