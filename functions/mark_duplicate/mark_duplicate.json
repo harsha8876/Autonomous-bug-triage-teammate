@@ -1,0 +1,19 @@
+{
+  "name": "mark_duplicate",
+  "description": "Creates a duplicate issue record and logs the event when dedup-confirmer confirms a duplicate.",
+  "type": "API",         // API = sync request/response; JOB = async background run
+  "visibility": "POD",   // PERSONAL | POD | PUBLIC | RESTRICTED
+  "code": { "$file": "code.py" },
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "issues",
+      "permission_ids": ["datastore.table.read", "datastore.record.write"]
+    },
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "operator_runs",
+      "permission_ids": ["datastore.table.read", "datastore.record.write"]
+    }
+  ] }
+}

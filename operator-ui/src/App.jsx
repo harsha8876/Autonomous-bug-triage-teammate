@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { LemmaClient, setTestingToken } from 'lemma-sdk';
-import { initialFeedback, initialActivity } from './data';
+import { lemmaClient } from './lemmaClient';
 import { navStyle } from './styles';
+import { useBreakpoint } from './useBreakpoint';
 import Inbox from './Inbox';
 import Board from './Board';
 import Activity from './Activity';
@@ -10,12 +10,6 @@ import TriagePanel from './TriagePanel';
 const ACCENT = '#D4A373';
 const FLAT_SHADOWS = false;
 const DEFAULT_PAGE = 'inbox';
-const POD_ID = '019f0891-5981-774f-967b-18209c907826';
-const API_URL = import.meta.env.VITE_LEMMA_API_URL || '/lemma';
-const AUTH_URL = 'http://127-0-0-1.sslip.io:3711/auth';
-
-setTestingToken(import.meta.env.VITE_LEMMA_TOKEN || '');
-const podClient = new LemmaClient({ apiUrl: API_URL, authUrl: AUTH_URL, podId: POD_ID });
 
 const deriveTitle = (raw) => {
   const t = raw.replace(/\s+/g, ' ').trim();
@@ -124,6 +118,7 @@ const simulateTriage = (text) => {
 };
 
 export default function App() {
+  const isMobile = useBreakpoint();
   const accent = ACCENT;
   const shadow = FLAT_SHADOWS ? 'none' : '0 1px 2px rgba(61,58,46,0.05), 0 1px 3px rgba(61,58,46,0.04)';
 
@@ -135,15 +130,12 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(null);
 
-  const [feedback, setFeedback] = useState(initialFeedback);
-  const [activity, setActivity] = useState(initialActivity);
+  const [feedback, setFeedback] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [board, setBoard] = useState(EMPTY_BOARD);
 
   const [ghPopover, setGhPopover] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [webhookInput, setWebhookInput] = useState(() => {
-    try { return localStorage.getItem('operatorWebhookBase') || ''; } catch { return ''; }
-  });
 
   const toastTimer = useRef(null);
   const dragRef = useRef(null);
@@ -152,12 +144,13 @@ export default function App() {
   const ghRef = useRef(null);
 
   useEffect(() => {
-    podClient.records.list('feedback', {
+    lemmaClient.records.list('feedback', {
       sort: [{ field: 'created_at', direction: 'desc' }],
       limit: 50,
     }).then((res) => {
-      if (res.items?.length) {
-        setFeedback(res.items.map((r) => ({
+      const items = res.items || res || [];
+      if (items.length) {
+        setFeedback(items.map((r) => ({
           id: String(r.id),
           source: String(r.source || 'manual'),
           time: relativeTime(r.created_at),
@@ -167,13 +160,14 @@ export default function App() {
       }
     }).catch(() => {});
 
-    podClient.records.list('issues', {
+    lemmaClient.records.list('issues', {
       sort: [{ field: 'created_at', direction: 'desc' }],
       limit: 200,
     }).then((res) => {
-      if (!res.items?.length) return;
+      const items = res.items || res || [];
+      if (!items.length) return;
       const b = { triage: [], approved: [], inProgress: [], done: [] };
-      for (const r of res.items) {
+      for (const r of items) {
         const col = STATUS_TO_COL[r.status] ?? 'triage';
         b[col].push(issueToCard(r));
       }
@@ -192,31 +186,23 @@ export default function App() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [ghPopover]);
 
-  const webhookUrl = webhookInput.trim()
-    ? webhookInput.trim().replace(/\/+$/, '').replace(/\/github$/, '') + '/github'
-    : '';
-
-  const onWebhookInput = (e) => {
-    const v = e.target.value;
-    setWebhookInput(v);
-    try { localStorage.setItem('operatorWebhookBase', v); } catch { /* ok */ }
-  };
+  const WEBHOOK_URL = 'https://conform-reassign-retiring.ngrok-free.dev/github';
 
   const copyWebhook = () => {
-    if (!webhookUrl) return;
-    navigator.clipboard.writeText(webhookUrl).then(() => {
+    navigator.clipboard.writeText(WEBHOOK_URL).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     }).catch(() => {});
   };
 
   const refreshActivity = () => {
-    podClient.records.list('operator_runs', {
+    lemmaClient.records.list('operator_runs', {
       sort: [{ field: 'created_at', direction: 'desc' }],
       limit: 100,
     }).then((res) => {
-      if (!res.items?.length) return;
-      setActivity(res.items.map((r) => ({
+      const items = res.items || res || [];
+      if (!items.length) return;
+      setActivity(items.map((r) => ({
         id: String(r.id),
         action: formatRunAction(String(r.action || ''), String(r.detail || '')),
         severity: RUN_ACTION_SEV[r.action] ?? 'P3',
@@ -240,7 +226,7 @@ export default function App() {
 
   const editTitle = (e) => setTriage((t) => ({ ...t, title: e.target.value }));
 
-  const runTriageWorkflow = async (text, feedbackId = null) => {
+  const runTriageWorkflow = async (text, existingFeedbackId = null) => {
     if (!text.trim()) return;
 
     setTriageOpen(true);
@@ -249,61 +235,52 @@ export default function App() {
     pollingActive.current = true;
     currentRunRef.current = { runId: null, approvalNodeId: null };
 
+    let feedbackId = existingFeedbackId;
+
     try {
-      // 1. Create run — starts WAITING on the intake FORM node
-      let run = await podClient.workflows.runs.create('triage');
-      const runId = run.id;
-      currentRunRef.current.runId = runId;
+      // 1. Route through bug_ingest function — fires DATASTORE_EVENT on the triage workflow
+      if (!feedbackId) {
+        const fb = await lemmaClient.functions.runs.create('bug_ingest', {
+          input: { raw_text: text.trim(), source: 'manual' },
+        });
+        feedbackId = String(fb.output?.feedback_id || fb.id);
+        setFeedback((prev) => [{
+          id: feedbackId,
+          source: 'manual',
+          time: '0m',
+          status: 'new',
+          text: text.trim(),
+        }, ...prev]);
+      }
 
-      // 2. Submit the intake form
-      run = await podClient.workflows.runs.submitForm(runId, {
-        node_id: 'intake',
-        inputs: { raw_text: text.trim(), source: 'manual' },
-      });
-
-      // 3. Poll until the run reaches the approval FORM or a terminal state
-      while (pollingActive.current) {
-        const s = run.status;
-        if (s === 'FAILED' || s === 'COMPLETED') break;
-        if (s === 'WAITING' && run.active_wait?.node_id === 'approval') break;
-        await new Promise((r) => setTimeout(r, 2000));
-        run = await podClient.workflows.runs.get(runId);
+      // 2. Poll the issues table for the triage result (up to 2 min, every 3s)
+      let issue = null;
+      const deadline = Date.now() + 120_000;
+      while (pollingActive.current && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const res = await lemmaClient.records.list('issues', {
+          sort: [{ field: 'created_at', direction: 'desc' }],
+          limit: 20,
+        });
+        const items = res.items || res || [];
+        issue = items.find((r) => String(r.feedback_id) === feedbackId && r.status !== 'duplicate');
+        if (issue) break;
       }
 
       if (!pollingActive.current) return;
 
-      if (run.status === 'FAILED') {
-        currentRunRef.current = { runId: null, approvalNodeId: null };
-        const sim = simulateTriage(text);
-        setTriage({ ...sim, _id: null, _feedbackId: feedbackId || null });
-        setTriageRunning(false);
-        const runEntry = { action: 'triaged', detail: sim.title };
-        if (feedbackId) runEntry.feedback_id = feedbackId;
-        podClient.records.create('operator_runs', runEntry).then(refreshActivity).catch(() => {});
-        return;
-      }
-
-      if (run.active_wait?.node_id === 'approval') {
-        currentRunRef.current.approvalNodeId = run.active_wait.node_id;
-      }
-
-      // 4. Fetch the issue that the triage agent wrote to the issues table
-      const issueRes = await podClient.records.list('issues', {
-        sort: [{ field: 'created_at', direction: 'desc' }],
-        limit: 1,
-      });
-      const issue = issueRes.items?.[0];
-
       if (!issue) {
+        // Timeout — fall back to simulated triage
+        const sim = simulateTriage(text);
+        setTriage({ ...sim, _id: null, _feedbackId: feedbackId });
         setTriageRunning(false);
-        flashToast('no', 'No triage result found in issues table');
         return;
       }
 
-      // 5. Map to TriagePanel shape (confidence 0–1 → 0–100)
-      const triageResult = {
+      // 3. Map to TriagePanel shape
+      setTriage({
         _id: String(issue.id),
-        _feedbackId: String(issue.feedback_id || feedbackId || ''),
+        _feedbackId: feedbackId,
         title: String(issue.title || deriveTitle(text)),
         severity: String(issue.severity || 'P3'),
         component: String(issue.component || ''),
@@ -318,20 +295,14 @@ export default function App() {
               issueTitle: String(issue.duplicate_of),
             }
           : null,
-      };
-
-      setTriage(triageResult);
+      });
       setTriageRunning(false);
-      // Agent writes operator_runs itself; refresh so UI picks it up
       refreshActivity();
     } catch {
       if (!pollingActive.current) return;
       const sim = simulateTriage(text);
       setTriage({ ...sim, _id: null, _feedbackId: feedbackId || null });
       setTriageRunning(false);
-      const runEntry = { action: 'triaged', detail: sim.title };
-      if (feedbackId) runEntry.feedback_id = feedbackId;
-      podClient.records.create('operator_runs', runEntry).then(refreshActivity).catch(() => {});
     }
   };
 
@@ -345,7 +316,7 @@ export default function App() {
 
     if (runId && approvalNodeId) {
       try {
-        await podClient.workflows.runs.submitForm(runId, {
+        await lemmaClient.workflows.runs.submitForm(runId, {
           node_id: approvalNodeId,
           inputs: { decision: 'approve' },
         });
@@ -356,10 +327,10 @@ export default function App() {
     let cardId = 'n' + Date.now();
     try {
       if (t._id) {
-        await podClient.records.update('issues', t._id, { status: 'approved' });
+        await lemmaClient.records.update('issues', t._id, { status: 'approved' });
         cardId = t._id;
       } else {
-        const created = await podClient.records.create('issues', {
+        const created = await lemmaClient.records.create('issues', {
           title: t.title,
           severity: t.severity,
           component: t.component || '',
@@ -383,10 +354,10 @@ export default function App() {
     flashToast('ok', 'GitHub issue created · ' + t.title);
     const approveEntry = { action: 'approved', detail: t.title };
     if (cardId.includes('-')) approveEntry.issue_id = cardId;
-    podClient.records.create('operator_runs', approveEntry).then(refreshActivity).catch(() => {});
+    lemmaClient.records.create('operator_runs', approveEntry).then(refreshActivity).catch(() => {});
     if (t._feedbackId) {
       setFeedback((fb) => fb.map((f) => f.id === t._feedbackId ? { ...f, status: 'triaged' } : f));
-      podClient.records.update('feedback', t._feedbackId, { status: 'triaged' }).catch(() => {});
+      lemmaClient.records.update('feedback', t._feedbackId, { status: 'triaged' }).catch(() => {});
     }
   };
 
@@ -394,7 +365,7 @@ export default function App() {
     const { runId, approvalNodeId } = currentRunRef.current;
     if (runId && approvalNodeId) {
       try {
-        await podClient.workflows.runs.submitForm(runId, {
+        await lemmaClient.workflows.runs.submitForm(runId, {
           node_id: approvalNodeId,
           inputs: { decision: 'reject' },
         });
@@ -404,7 +375,7 @@ export default function App() {
     pollingActive.current = false;
     currentRunRef.current = { runId: null, approvalNodeId: null };
     flashToast('no', 'Triage rejected');
-    podClient.records.create('operator_runs', { action: 'rejected', detail: triage?.title || '' })
+    lemmaClient.records.create('operator_runs', { action: 'rejected', detail: triage?.title || '' })
       .then(refreshActivity).catch(() => {});
   };
 
@@ -429,7 +400,7 @@ export default function App() {
     // Persist status change for real DB records (UUIDs contain hyphens)
     const newStatus = COL_TO_STATUS[key];
     if (newStatus && d.id.includes('-')) {
-      podClient.records.update('issues', d.id, { status: newStatus }).catch(() => {});
+      lemmaClient.records.update('issues', d.id, { status: newStatus }).catch(() => {});
     }
   };
 
@@ -437,7 +408,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: "'Geist', sans-serif", color: '#3A3528' }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '13px 24px', background: 'rgba(204,213,174,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(61,58,46,0.1)' }}>
+      <header style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 6 : 16, padding: isMobile ? '10px 14px' : '13px 24px', background: 'rgba(204,213,174,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(61,58,46,0.1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{ width: 22, height: 22, borderRadius: 7, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)' }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: '#FEFAE0' }} />
@@ -459,13 +430,13 @@ export default function App() {
                 <button onClick={() => setGhPopover(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9A876C', lineHeight: 1, padding: '0 2px' }}>×</button>
               </div>
 
-              {/* Step 1: start the tunnel */}
+              {/* Step 1: start the webhook server */}
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>1 · Start the tunnel</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>1 · Start the webhook server</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 8, padding: '8px 10px' }}>
-                  <span style={{ flex: 1, fontSize: 12, fontFamily: "'Geist Mono', monospace", color: '#46442F' }}>bash start-all.sh</span>
+                  <span style={{ flex: 1, fontSize: 12, fontFamily: "'Geist Mono', monospace", color: '#46442F' }}>node webhook-server/index.js</span>
                   <button
-                    onClick={() => navigator.clipboard.writeText('bash start-all.sh').catch(() => {})}
+                    onClick={() => navigator.clipboard.writeText('node webhook-server/index.js').catch(() => {})}
                     style={{ flexShrink: 0, background: 'rgba(61,58,46,0.08)', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontFamily: "'Geist Mono', monospace", cursor: 'pointer', color: '#46442F', whiteSpace: 'nowrap' }}
                   >
                     copy
@@ -473,29 +444,16 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Step 2: paste ngrok URL */}
+              {/* Webhook URL */}
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>2 · Paste your ngrok URL</div>
-                <input
-                  type="text"
-                  value={webhookInput}
-                  onChange={onWebhookInput}
-                  placeholder="https://abc123.ngrok-free.app"
-                  style={{ width: '100%', boxSizing: 'border-box', background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.15)', borderRadius: 8, padding: '8px 10px', fontSize: 12, fontFamily: "'Geist Mono', monospace", color: '#46442F', outline: 'none' }}
-                />
-              </div>
-
-              {/* Webhook URL (derived) */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>3 · Webhook URL for GitHub</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 8, padding: '8px 10px', opacity: webhookUrl ? 1 : 0.45 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>2 · Webhook URL for GitHub</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 8, padding: '8px 10px' }}>
                   <span style={{ flex: 1, fontSize: 11.5, fontFamily: "'Geist Mono', monospace", color: '#46442F', wordBreak: 'break-all', lineHeight: 1.4 }}>
-                    {webhookUrl || 'paste ngrok URL above…'}
+                    {WEBHOOK_URL}
                   </span>
                   <button
                     onClick={copyWebhook}
-                    disabled={!webhookUrl}
-                    style={{ flexShrink: 0, background: copied ? 'rgba(143,167,106,0.22)' : 'rgba(61,58,46,0.08)', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontFamily: "'Geist Mono', monospace", cursor: webhookUrl ? 'pointer' : 'default', color: copied ? '#4A6A20' : '#46442F', transition: 'background .15s, color .15s', whiteSpace: 'nowrap' }}
+                    style={{ flexShrink: 0, background: copied ? 'rgba(143,167,106,0.22)' : 'rgba(61,58,46,0.08)', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontFamily: "'Geist Mono', monospace", cursor: 'pointer', color: copied ? '#4A6A20' : '#46442F', transition: 'background .15s, color .15s', whiteSpace: 'nowrap' }}
                   >
                     {copied ? '✓ copied' : 'copy'}
                   </button>
@@ -504,7 +462,7 @@ export default function App() {
 
               {/* GitHub setup steps */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>4 · Add webhook in GitHub</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C6F4F', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>3 · Add webhook in GitHub</div>
                 <ol style={{ margin: 0, padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
                     'Repo → Settings → Webhooks → Add webhook',
@@ -527,30 +485,30 @@ export default function App() {
             </div>
           )}
         </div>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <button onClick={() => navTo('inbox')} style={navStyle(page === 'inbox')}>Inbox</button>
-          <button onClick={() => navTo('board')} style={navStyle(page === 'board')}>Board</button>
-          <button onClick={() => navTo('activity')} style={navStyle(page === 'activity')}>Activity</button>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 3, ...(isMobile && { order: 3, flex: '0 0 100%', justifyContent: 'center' }) }}>
+          <button onClick={() => navTo('inbox')} style={navStyle(page === 'inbox', isMobile)}>Inbox</button>
+          <button onClick={() => navTo('board')} style={navStyle(page === 'board', isMobile)}>Board</button>
+          <button onClick={() => navTo('activity')} style={navStyle(page === 'activity', isMobile)}>Activity</button>
         </nav>
       </header>
 
       {page === 'inbox' && (
         <Inbox
-          accent={accent} shadow={shadow} feedback={feedback}
+          accent={accent} shadow={shadow} feedback={feedback} isMobile={isMobile}
           composerText={composerText}
           onComposer={(e) => setComposerText(e.target.value)}
           runTriage={runTriage} openTriage={openTriage}
         />
       )}
       {page === 'board' && (
-        <Board accent={accent} shadow={shadow} board={board} dragOver={dragOver} handlers={dragHandlers} />
+        <Board accent={accent} shadow={shadow} board={board} dragOver={dragOver} handlers={dragHandlers} isMobile={isMobile} />
       )}
       {page === 'activity' && (
-        <Activity accent={accent} shadow={shadow} activity={activity} />
+        <Activity accent={accent} shadow={shadow} activity={activity} isMobile={isMobile} />
       )}
 
       <TriagePanel
-        accent={accent} open={triageOpen} running={triageRunning} triage={triage}
+        accent={accent} open={triageOpen} running={triageRunning} triage={triage} isMobile={isMobile}
         onClose={closeTriage} onEditTitle={editTitle} onApprove={approve} onReject={reject}
       />
 

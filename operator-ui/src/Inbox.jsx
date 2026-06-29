@@ -32,39 +32,43 @@ const SourceBadge = ({ source }) => {
   );
 };
 
-export default function Inbox({ accent, shadow, feedback, composerText, onComposer, runTriage, openTriage }) {
+export default function Inbox({ accent, shadow, feedback, composerText, onComposer, runTriage, openTriage, isMobile }) {
+  const pad = isMobile ? '20px 14px 80px' : '28px 22px 90px';
+  const h1Size = isMobile ? 19 : 22;
+  const bodySize = isMobile ? 13 : 13.5;
+
   return (
-    <main style={{ maxWidth: 760, margin: '0 auto', padding: '28px 22px 90px' }}>
+    <main style={{ maxWidth: 760, margin: '0 auto', padding: pad }}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', color: '#2F2C20' }}>Inbox</h1>
-        <p style={{ margin: 0, fontSize: 13.5, color: '#7C795F' }}>Incoming feedback waiting to be triaged.</p>
+        <h1 style={{ margin: '0 0 4px', fontSize: h1Size, fontWeight: 600, letterSpacing: '-0.02em', color: '#2F2C20' }}>Inbox</h1>
+        <p style={{ margin: 0, fontSize: bodySize, color: '#7C795F' }}>Incoming feedback waiting to be triaged.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         <HoverDiv
           onClick={() => document.getElementById('bug-composer')?.focus()}
-          baseStyle={{ flex: 1, cursor: 'pointer', background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 11, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: shadow, transition: 'border-color .15s, transform .15s' }}
+          baseStyle={{ flex: 1, cursor: 'pointer', background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 11, padding: isMobile ? '10px 12px' : '12px 14px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: shadow, transition: 'border-color .15s, transform .15s' }}
           hoverStyle={{ borderColor: 'rgba(212,163,115,0.75)', transform: 'translateY(-1px)' }}
         >
           <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>✏️</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#46442F', marginBottom: 2 }}>Manual entry</div>
+            <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: '#46442F', marginBottom: 2 }}>Manual entry</div>
             <div style={{ fontSize: 11, color: '#9A876C' }}>Paste a report below</div>
           </div>
         </HoverDiv>
         <HoverDiv
-          baseStyle={{ flex: 1, cursor: 'default', background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 11, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: shadow, transition: 'border-color .15s' }}
+          baseStyle={{ flex: 1, cursor: 'default', background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 11, padding: isMobile ? '10px 12px' : '12px 14px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: shadow, transition: 'border-color .15s' }}
           hoverStyle={{ borderColor: 'rgba(61,58,46,0.22)' }}
         >
           <span style={{ flexShrink: 0, color: '#46442F' }}><GitHubMark size={18} /></span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#46442F', marginBottom: 2 }}>GitHub Issues</div>
+            <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: '#46442F', marginBottom: 2 }}>GitHub Issues</div>
             <div style={{ fontSize: 11, color: '#9A876C' }}>Auto-triaged via webhook</div>
           </div>
         </HoverDiv>
       </div>
 
-      <div style={{ background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 14, padding: 18, boxShadow: shadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.12)', borderRadius: 14, padding: isMobile ? 14 : 18, boxShadow: shadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#46442F' }}>New report</span>
           <span style={{ fontSize: 11, color: '#9A876C', fontFamily: "'Geist Mono', monospace" }}>manual entry</span>
@@ -76,14 +80,14 @@ export default function Inbox({ accent, shadow, feedback, composerText, onCompos
           onChange={onComposer}
           placeholder="Paste a bug report…"
           rows={4}
-          baseStyle={{ width: '100%', resize: 'vertical', background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.1)', borderRadius: 10, padding: '13px 14px', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.55, color: '#3A3528', outline: 'none', transition: 'border-color .15s' }}
+          baseStyle={{ width: '100%', resize: 'vertical', background: '#FAEDCD', border: '1px solid rgba(61,58,46,0.1)', borderRadius: 10, padding: '13px 14px', fontFamily: 'inherit', fontSize: isMobile ? 13 : 14, lineHeight: 1.55, color: '#3A3528', outline: 'none', transition: 'border-color .15s' }}
           focusStyle={{ borderColor: 'rgba(212,163,115,0.85)' }}
         />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: '#9A876C', lineHeight: 1.4 }}>The agent classifies severity &amp; component, then checks for duplicates.</span>
           <HoverButton
             onClick={runTriage}
-            baseStyle={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: '#3A2A14', border: 'none', borderRadius: 9, padding: '9px 16px', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(61,58,46,0.14)', transition: 'filter .15s' }}
+            baseStyle={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: '#3A2A14', border: 'none', borderRadius: 9, padding: isMobile ? '12px 18px' : '9px 16px', minHeight: isMobile ? 44 : undefined, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(61,58,46,0.14)', transition: 'filter .15s' }}
             hoverStyle={{ filter: 'brightness(0.95)' }}
           >
             Triage <span style={{ fontSize: 15, lineHeight: 1 }}>→</span>
@@ -102,7 +106,7 @@ export default function Inbox({ accent, shadow, feedback, composerText, onCompos
             <HoverDiv
               key={item.id}
               onClick={item.status === 'triaged' || item.status === 'duplicate' ? undefined : () => openTriage(item.text, item.id)}
-              baseStyle={{ cursor: item.status === 'triaged' || item.status === 'duplicate' ? 'default' : 'pointer', background: '#E9EDC9', border: '1px solid rgba(61,58,46,0.1)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: shadow, transition: 'border-color .15s, transform .15s', opacity: item.status === 'triaged' || item.status === 'duplicate' ? 0.72 : 1 }}
+              baseStyle={{ cursor: item.status === 'triaged' || item.status === 'duplicate' ? 'default' : 'pointer', background: '#E9EDC9', border: '1px solid rgba(61,58,46,0.1)', borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: shadow, transition: 'border-color .15s, transform .15s', opacity: item.status === 'triaged' || item.status === 'duplicate' ? 0.72 : 1 }}
               hoverStyle={item.status === 'triaged' || item.status === 'duplicate' ? {} : { borderColor: 'rgba(212,163,115,0.75)', transform: 'translateY(-1px)' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -110,7 +114,7 @@ export default function Inbox({ accent, shadow, feedback, composerText, onCompos
                 <span style={statusStyle(item.status)}>{statusLabel[item.status]}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9A876C', fontFamily: "'Geist Mono', monospace" }}>{item.time}</span>
               </div>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#46442F' }}>{summarizeText(item.text)}</p>
+              <p style={{ margin: 0, fontSize: isMobile ? 13 : 14, lineHeight: 1.55, color: '#46442F' }}>{summarizeText(item.text)}</p>
             </HoverDiv>
           ))}
         </div>

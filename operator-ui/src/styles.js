@@ -27,9 +27,11 @@ export const sourceStyle = () => ({
   background: 'rgba(61,58,46,0.06)', border: '1px solid rgba(61,58,46,0.1)', fontFamily: MONO,
 });
 
-export const navStyle = (active) => ({
-  appearance: 'none', border: 'none', cursor: 'pointer', padding: '7px 13px',
-  borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit',
+export const navStyle = (active, isMobile = false) => ({
+  appearance: 'none', border: 'none', cursor: 'pointer',
+  padding: isMobile ? '11px 16px' : '7px 13px',
+  minHeight: isMobile ? 44 : undefined,
+  borderRadius: '8px', fontSize: isMobile ? '13px' : '14px', fontFamily: 'inherit',
   fontWeight: active ? 600 : 500, color: active ? '#3A3528' : '#7C795F',
   background: active ? 'rgba(212,163,115,0.22)' : 'transparent',
   transition: 'background .15s, color .15s',

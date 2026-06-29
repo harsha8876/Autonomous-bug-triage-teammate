@@ -22,3 +22,9 @@ textarea::placeholder, input::placeholder { color: #A8A488; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+button { touch-action: manipulation; }
+
+@media (max-width: 767px) {
+  body { overflow-x: hidden; }
+}

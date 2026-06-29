@@ -1,0 +1,170 @@
+id,created_at,updated_at,raw_text,source,status
+dc060bff-80ff-4e20-b3f5-65eb3d998a9f,2026-06-28T15:06:50.873441Z,2026-06-28T15:06:50.873441Z,"header issue on mobile
+
+",github,pending
+359e504d-144d-4552-9410-949e41a6a34c,2026-06-28T14:51:03.172711Z,2026-06-28T14:51:03.172711Z,"search bar not the top
+
+",github,pending
+6798bfa8-ed03-40a4-a3e7-d2255ee24e39,2026-06-28T14:45:31.773459Z,2026-06-28T14:45:31.773459Z,"screen not loading
+
+",github,pending
+7ce98dd2-9cea-49ea-ab37-93a90f83e970,2026-06-28T14:44:28.090398Z,2026-06-28T14:44:28.090398Z,"app not working
+
+",github,pending
+68dee452-6fe9-4486-a27e-796e79d6baae,2026-06-28T14:06:40.313939Z,2026-06-28T14:06:40.313939Z,"Test bug from curl
+
+This is a test bug report",github,pending
+07a603a4-725c-44bd-be1b-9d55469cac50,2026-06-28T14:04:26.086684Z,2026-06-28T14:04:26.086684Z,"app not working!
+
+",github,pending
+b5ad2ced-0d01-4aa6-adda-e1ff6a39ad8b,2026-06-27T19:37:26.143002Z,2026-06-27T19:37:26.143002Z,"application interface is laggy
+
+",github,pending
+628ca5c1-839d-4ce9-b4db-d99f2e7d315f,2026-06-27T18:52:37.643434Z,2026-06-27T19:11:55.965933Z,"Search results are not updated after clearing filters
+
+## Summary
+
+When users apply filters on the search page and then clear all filters, the displayed results remain filtered until the page is manually refreshed.
+
+---
+
+## Environment
+
+- Browser: Firefox 141.0
+- OS: Windows 11
+- Application Version: v2.9.0
+
+---
+
+## Steps to Reproduce
+
+1. Open the Search page.
+2. Search for any keyword (e.g. ""laptop"").
+3. Apply a category filter (Electronics).
+4. Click **Clear All Filters**.
+5. Observe the search results.
+
+---
+
+## Expected Behavior
+
+All filters should be removed and the search results should immediately refresh to display all matching items.
+
+---
+
+## Actual Behavior
+
+The filter chips disappear, but the results remain filtered. Refreshing the page displays the correct results.
+
+---
+
+## Console Error
+
+```text
+Warning: Query cache was invalidated, but no refetch was triggered.
+```
+
+---
+
+## Frequency
+
+- [x] Always (100%)
+- [ ] Sometimes
+- [ ] Rarely
+
+---
+
+## Impact
+
+Users may believe there are fewer search results than actually exist, leading to confusion and missed products.
+
+---
+
+## Additional Notes
+
+- Issue is reproducible in Firefox and Edge.
+- Does not occur when changing filters individually.
+- Appears to have started after the latest search optimization update.
+
+---
+
+## Possible Labels
+
+`bug` `P2` `frontend` `search`",github,triaged
+aa780f8d-8831-4825-9103-59b66157fa71,2026-06-27T18:43:51.038708Z,2026-06-27T19:06:26.209022Z,"Checkout button becomes unresponsive after applying discount code
+
+## Summary
+
+Applying a valid discount code causes the **Complete Purchase** button to stop responding. Users cannot proceed with checkout unless the page is refreshed.
+
+---
+
+## Environment
+
+- Browser: Chrome 138.0.7204.51
+- OS: macOS Sequoia 15.5
+- Application Version: v2.8.1
+
+---
+
+## Steps to Reproduce
+
+1. Add any product to the cart.
+2. Navigate to the Checkout page.
+3. Enter a valid discount code (e.g. `SUMMER25`).
+4. Click **Apply**.
+5. Click **Complete Purchase**.
+
+---
+
+## Expected Behavior
+
+The payment flow should begin and redirect the user to the payment provider.
+
+---
+
+## Actual Behavior
+
+Nothing happens after clicking **Complete Purchase**. No loading indicator appears, and no network request is sent.
+
+---
+
+## Console Error
+
+```text
+TypeError: Cannot read properties of undefined (reading 'totalPrice')
+    at CheckoutSummary.tsx:118
+    at onCheckout()
+```
+
+---
+
+## Frequency
+
+- [x] Always (100%)
+- [ ] Sometimes
+- [ ] Rarely
+
+---
+
+## Impact
+
+Users are unable to complete purchases after applying a discount code, preventing successful checkouts.
+
+---
+
+## Additional Notes
+
+- Started occurring after deployment of commit `4f7c9ad`.
+- Refreshing the page temporarily resolves the issue until another coupon is applied.
+
+---
+
+## Possible Labels
+
+`bug` `P1` `checkout` `frontend`",github,triaged
+db1c9b1b-01f0-4ac3-b3e5-eb99499f8d10,2026-06-27T13:10:51.643024Z,2026-06-27T13:10:51.643024Z,Search results pagination shows page 2 is empty even though there are 40 results.,github,pending
+81fd4d21-9ae2-46a4-a322-1426738fb602,2026-06-27T13:10:37.622506Z,2026-06-27T13:10:37.622506Z,"App crashes when uploading a file larger than 50MB — no error message, the whole tab freezes.",slack,pending
+3c31ab51-88b8-4a43-bc5b-3960bdc6d805,2026-06-27T13:10:37.607885Z,2026-06-27T13:10:37.607885Z,Dark mode toggle resets to light on every page navigation. Have to re-enable it constantly.,github,pending
+04d6653c-d2de-4677-80f7-38b38d417b07,2026-06-27T13:10:37.591604Z,2026-06-27T13:10:37.591604Z,CSV export includes a trailing empty column that breaks our import script.,manual,pending
+4d294aae-912e-4db4-99d9-ebe22d5aafcb,2026-06-27T13:10:37.575500Z,2026-06-27T13:10:37.575500Z,Checkout button does nothing on mobile Safari after applying a promo code. Cart total updates but tapping Pay just spins forever.,slack,pending

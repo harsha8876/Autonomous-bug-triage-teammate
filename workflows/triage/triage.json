@@ -1,20 +1,69 @@
 {
   "name": "triage",
-  "description": "Triages incoming bug reports: classifies severity, detects duplicates, routes to human approval, then creates a GitHub issue.",
-  "start": { "type": "MANUAL" },
+  "description": "Triages incoming bug reports: deduplicates first, then classifies severity, routes to human approval, and notifies Slack.",
+  "start": {
+    "type": "MANUAL"
+  },
   "nodes": [
     {
       "id": "intake",
       "type": "FORM",
-      "label": "Bug Report Intake",
+      "label": "Triage intake",
       "config": {
         "input_schema": {
           "type": "object",
           "properties": {
             "raw_text": { "type": "string" },
-            "source": { "type": "string", "enum": ["manual", "github", "slack", "email"] }
+            "source": { "type": "string" },
+            "feedback_id": { "type": "string" }
           },
           "required": ["raw_text"]
+        }
+      }
+    },
+    {
+      "id": "dedup_check",
+      "type": "AGENT",
+      "label": "Check for Duplicates",
+      "config": {
+        "agent_name": "dedup-confirmer",
+        "input_mapping": {
+          "raw_text": {
+            "type": "expression",
+            "value": "intake.raw_text"
+          },
+          "feedback_id": {
+            "type": "expression",
+            "value": "intake.feedback_id"
+          }
+        }
+      }
+    },
+    {
+      "id": "is_dup",
+      "type": "DECISION",
+      "label": "Is Duplicate?",
+      "config": {
+        "rules": [
+          {
+            "condition": "dedup_check.answer.is_duplicate && dedup_check.answer.similarity >= `0.7`",
+            "next_node_id": "mark_duplicate"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mark_duplicate",
+      "type": "FUNCTION",
+      "label": "Mark as Duplicate",
+      "config": {
+        "function_name": "mark_duplicate",
+        "input_mapping": {
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" },
+          "raw_text": { "type": "expression", "value": "intake.raw_text" },
+          "duplicate_id": { "type": "expression", "value": "dedup_check.answer.duplicate_id" },
+          "similarity": { "type": "expression", "value": "dedup_check.answer.similarity" },
+          "explanation": { "type": "expression", "value": "dedup_check.answer.explanation" }
         }
       }
     },
@@ -28,20 +77,10 @@
           "message": {
             "type": "expression",
             "value": "intake.raw_text"
-          }
-        }
-      }
-    },
-    {
-      "id": "dedup_check",
-      "type": "AGENT",
-      "label": "Check for Duplicates",
-      "config": {
-        "agent_name": "dedup-confirmer",
-        "input_mapping": {
-          "message": {
+          },
+          "feedback_id": {
             "type": "expression",
-            "value": "intake.raw_text"
+            "value": "intake.feedback_id"
           }
         }
       }
@@ -62,16 +101,36 @@
       }
     },
     {
+      "id": "notify_slack",
+      "type": "FUNCTION",
+      "label": "Notify Slack",
+      "config": {
+        "function_name": "slack_notify",
+        "input_mapping": {
+          "issue_id": { "type": "expression", "value": "triage_agent.output.issue_id" },
+          "severity": { "type": "expression", "value": "triage_agent.output.severity" },
+          "title": { "type": "expression", "value": "triage_agent.output.title" },
+          "approver": { "type": "literal", "value": "shettyharsha989@gmail.com" },
+          "decision": { "type": "expression", "value": "approval.decision" },
+          "channel": { "type": "literal", "value": "bug-triage" }
+        }
+      }
+    },
+    {
       "id": "end",
       "type": "END",
       "label": "Done"
     }
   ],
   "edges": [
-    { "id": "e1", "source": "intake", "target": "triage_agent" },
-    { "id": "e2", "source": "triage_agent", "target": "dedup_check" },
-    { "id": "e3", "source": "dedup_check", "target": "approval" },
-    { "id": "e4", "source": "approval", "target": "end" }
+    { "id": "e0", "source": "intake", "target": "dedup_check" },
+    { "id": "e1", "source": "dedup_check", "target": "is_dup" },
+    { "id": "e2", "source": "is_dup", "target": "triage_agent" },
+    { "id": "e2b", "source": "is_dup", "target": "mark_duplicate" },
+    { "id": "e3", "source": "mark_duplicate", "target": "end" },
+    { "id": "e4", "source": "triage_agent", "target": "approval" },
+    { "id": "e5", "source": "approval", "target": "notify_slack" },
+    { "id": "e6", "source": "notify_slack", "target": "end" }
   ],
   "visibility": "POD"
 }

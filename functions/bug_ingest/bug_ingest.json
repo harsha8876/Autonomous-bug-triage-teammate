@@ -1,0 +1,19 @@
+{
+  "name": "bug_ingest",
+  "description": "Inserts a raw bug report into the feedback table, triggering the triage workflow.",
+  "type": "API",         // API = sync request/response; JOB = async background run
+  "visibility": "POD",   // PERSONAL | POD | PUBLIC | RESTRICTED
+  "code": { "$file": "code.py" },
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "feedback",
+      "permission_ids": ["datastore.table.read", "datastore.record.write"]
+    },
+    {
+      "resource_type": "workflow",
+      "resource_name": "triage",
+      "permission_ids": ["workflow.read", "workflow.execute"]
+    }
+  ] }
+}
