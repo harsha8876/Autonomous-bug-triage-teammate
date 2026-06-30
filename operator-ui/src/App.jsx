@@ -238,12 +238,12 @@ export default function App() {
     currentRunRef.current = { runId: null, approvalNodeId: null };
 
     let feedbackId = existingFeedbackId;
+    let ingestIsDuplicate = false;
+    let ingestSimilarity = 0;
+    let ingestDuplicateId = null;
 
     try {
       // 1. Route through bug_ingest function — fires DATASTORE_EVENT on the triage workflow
-      let ingestIsDuplicate = false;
-      let ingestSimilarity = 0;
-      let ingestDuplicateId = null;
       if (!feedbackId) {
         const fb = await lemmaClient.functions.runs.create('bug_ingest', {
           input: { raw_text: text.trim(), source: 'manual' },
@@ -365,6 +365,16 @@ export default function App() {
         cardId = String(created.id);
       }
     } catch { /* non-fatal — keep temp ID */ }
+
+    try {
+      await lemmaClient.functions.runs.create('github_create_issue', {
+        input: {
+          title: t.title,
+          body: (t.reasoning || '') + '\n\n**Repro steps:**\n' + (t.repro || []).map((s, i) => (i + 1) + '. ' + s).join('\n'),
+          labels: [...(t.labels || []), String(t.severity || '').toLowerCase()],
+        },
+      });
+    } catch { /* non-fatal — issue creation failure shouldn't block the approval flow */ }
 
     setBoard((b) => {
       const card = { id: cardId, title: t.title, severity: t.severity, component: t.component, confidence: t.confidence, time: 'now', isDuplicate: t._isDuplicate || false, similarity: t._ingestSimilarity || 0 };

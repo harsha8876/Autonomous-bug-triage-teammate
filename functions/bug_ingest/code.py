@@ -49,7 +49,7 @@ def _parse_json_from_text(raw):
         return json.loads(m.group(0))
     raise ValueError(f'No JSON found in: {text[:80]}')
 
-def run_agent_and_get_response(pod, agent_name, message, timeout=30):
+def run_agent_and_get_response(pod, agent_name, message):
     conv = pod.agents.run(agent_name, message)
     # pod.agents.run() is synchronous — output may already be on conv
     raw = _extract_answer(getattr(conv, 'output', None))
@@ -57,15 +57,12 @@ def run_agent_and_get_response(pod, agent_name, message, timeout=30):
         return _parse_json_from_text(raw)
     # Fall back to polling if output not ready
     cid = str(conv.id)
-    deadline = time.time() + timeout
     c = conv
     while True:
         c = pod.conversations.get(cid)
         status = getattr(c, 'last_run_status', None) or getattr(c, 'status', None)
         if status in ('COMPLETED', 'FAILED', 'STOPPED'):
             break
-        if time.time() > deadline:
-            raise TimeoutError('Agent timed out')
         time.sleep(1)
     raw = _extract_answer(getattr(c, 'output', None))
     if raw and raw.strip():
