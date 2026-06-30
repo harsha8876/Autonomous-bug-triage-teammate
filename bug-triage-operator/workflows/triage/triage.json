@@ -1,0 +1,138 @@
+{
+  "description": "Triages incoming bug reports: classifies severity, detects duplicates, routes to human approval, then creates a GitHub issue.",
+  "edges": [
+    {
+      "id": "e1",
+      "label": null,
+      "source": "intake",
+      "target": "triage_agent"
+    },
+    {
+      "id": "e2",
+      "label": null,
+      "source": "triage_agent",
+      "target": "dedup_check"
+    },
+    {
+      "id": "e3",
+      "label": null,
+      "source": "dedup_check",
+      "target": "approval"
+    },
+    {
+      "id": "e4",
+      "label": null,
+      "source": "approval",
+      "target": "end"
+    }
+  ],
+  "icon_url": null,
+  "mode": "GLOBAL",
+  "name": "triage",
+  "nodes": [
+    {
+      "config": {
+        "assignee_pod_member_id": null,
+        "assignee_pod_member_id_expression": null,
+        "input_schema": {
+          "properties": {
+            "raw_text": {
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "manual",
+                "github",
+                "slack",
+                "email"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "raw_text"
+          ],
+          "type": "object"
+        },
+        "ui_schema": null
+      },
+      "id": "intake",
+      "label": "Bug Report Intake",
+      "position": null,
+      "type": "FORM"
+    },
+    {
+      "config": {
+        "agent_name": "triager",
+        "input_mapping": {
+          "message": {
+            "optional": false,
+            "type": "expression",
+            "value": "intake.raw_text"
+          }
+        }
+      },
+      "id": "triage_agent",
+      "label": "Triage Bug Report",
+      "position": null,
+      "type": "AGENT"
+    },
+    {
+      "config": {
+        "agent_name": "dedup-confirmer",
+        "input_mapping": {
+          "message": {
+            "optional": false,
+            "type": "expression",
+            "value": "intake.raw_text"
+          }
+        }
+      },
+      "id": "dedup_check",
+      "label": "Check for Duplicates",
+      "position": null,
+      "type": "AGENT"
+    },
+    {
+      "config": {
+        "assignee_pod_member_id": null,
+        "assignee_pod_member_id_expression": null,
+        "input_schema": {
+          "properties": {
+            "decision": {
+              "enum": [
+                "approve",
+                "reject"
+              ],
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "decision"
+          ],
+          "type": "object"
+        },
+        "ui_schema": null
+      },
+      "id": "approval",
+      "label": "Human Approval",
+      "position": null,
+      "type": "FORM"
+    },
+    {
+      "config": {},
+      "id": "end",
+      "label": "Done",
+      "position": null,
+      "type": "END"
+    }
+  ],
+  "start": {
+    "config": null,
+    "type": "MANUAL"
+  },
+  "visibility": "POD"
+}

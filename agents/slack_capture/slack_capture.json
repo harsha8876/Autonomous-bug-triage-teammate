@@ -1,0 +1,19 @@
+{
+  "name": "slack_capture",
+  "description": "Captures Slack bug reports and inserts them into the feedback table so the triage workflow fires.",
+  "instruction": { "$file": "instruction.md" },
+  "toolsets": ["POD"],
+  "visibility": "POD",
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "feedback",
+      "permission_ids": ["datastore.table.read", "datastore.record.write"]
+    },
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "operator_runs",
+      "permission_ids": ["datastore.record.write"]
+    }
+  ] }
+}

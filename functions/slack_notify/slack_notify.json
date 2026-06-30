@@ -1,0 +1,16 @@
+{
+  "name": "slack_notify",
+  "description": "Posts a Slack notification to the bug-triage channel when an issue is approved or rejected during triage.",
+  "type": "API",         // API = sync request/response; JOB = async background run
+  "visibility": "POD",   // PERSONAL | POD | PUBLIC | RESTRICTED
+  "code": { "$file": "code.py" },
+  "permissions": { "grants": [
+    {
+      "resource_type": "connector",
+      "resource_name": "slack",
+      "permission_ids": [
+        "connector.use"
+      ]
+    }
+  ] }
+}
