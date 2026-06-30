@@ -132,4 +132,4 @@ Expose it with a tunnel (e.g. ngrok) and point a GitHub repo webhook at `<tunnel
 
 Gappy AI Hackathon — Bug Triage Operator for solo open-source maintainers.
 
-Built by Harsha.
+Built by Harsha and Pranit.
