@@ -45,6 +45,11 @@ export default function Board({ accent, shadow, board, dragOver, handlers, isMob
                     baseStyle={{ background: '#FEFAE0', border: '1px solid rgba(61,58,46,0.1)', borderRadius: 11, padding: isMobile ? 11 : 13, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'grab', boxShadow: shadow, transition: 'box-shadow .15s, border-color .15s' }}
                     hoverStyle={{ borderColor: 'rgba(212,163,115,0.6)' }}
                   >
+                    {card.isDuplicate && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 600, color: '#B5651D', background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.35)', borderRadius: 6, padding: '2px 8px', letterSpacing: '0.02em' }}>
+                        ⚠️ Duplicate{card.similarity > 0 ? ` · ${card.similarity}%` : ''}
+                      </div>
+                    )}
                     <p style={{ margin: 0, fontSize: isMobile ? 12.5 : 13.5, fontWeight: 500, lineHeight: 1.45, color: '#3A3528' }}>{card.title}</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                       <span style={sevStyle(card.severity)}>{card.severity}</span>

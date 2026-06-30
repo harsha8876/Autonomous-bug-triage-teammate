@@ -76,6 +76,8 @@ const issueToCard = (r) => ({
   component: String(r.component || ''),
   confidence: Math.round((Number(r.confidence) || 0) * 100),
   time: relativeTime(r.created_at),
+  isDuplicate: r.status === 'duplicate' || !!r.duplicate_of,
+  similarity: Math.round((Number(r.similarity_score) || 0) * 100),
 });
 
 const parseJsonArray = (val) => {
@@ -239,11 +241,18 @@ export default function App() {
 
     try {
       // 1. Route through bug_ingest function — fires DATASTORE_EVENT on the triage workflow
+      let ingestIsDuplicate = false;
+      let ingestSimilarity = 0;
+      let ingestDuplicateId = null;
       if (!feedbackId) {
         const fb = await lemmaClient.functions.runs.create('bug_ingest', {
           input: { raw_text: text.trim(), source: 'manual' },
         });
-        feedbackId = String(fb.output?.feedback_id || fb.id);
+        const out = fb.output_data || fb.output || {};
+        feedbackId = String(out.feedback_id || fb.id);
+        ingestIsDuplicate = out.is_duplicate === 'yes' || out.is_duplicate === true;
+        ingestSimilarity = Number(out.similarity) || 0;
+        ingestDuplicateId = out.duplicate_id || null;
         setFeedback((prev) => [{
           id: feedbackId,
           source: 'manual',
@@ -263,8 +272,17 @@ export default function App() {
           limit: 20,
         });
         const items = res.items || res || [];
-        issue = items.find((r) => String(r.feedback_id) === feedbackId && r.status !== 'duplicate');
+        issue = items.find((r) => String(r.feedback_id) === feedbackId);
+        const dupMatch = ingestDuplicateId ? items.find((r) => String(r.id) === ingestDuplicateId) : null;
         if (issue) break;
+      }
+
+      // Persist duplicate info from ingest onto the issue record
+      if (ingestIsDuplicate && issue) {
+        lemmaClient.records.update('issues', String(issue.id), {
+          duplicate_of: ingestDuplicateId,
+          similarity_score: ingestSimilarity,
+        }).catch(() => {});
       }
 
       if (!pollingActive.current) return;
@@ -272,12 +290,18 @@ export default function App() {
       if (!issue) {
         // Timeout — fall back to simulated triage
         const sim = simulateTriage(text);
-        setTriage({ ...sim, _id: null, _feedbackId: feedbackId });
+        setTriage({ ...sim, _id: null, _feedbackId: feedbackId, _isDuplicate: ingestIsDuplicate, _ingestSimilarity: Math.round(ingestSimilarity * 100), _ingestDuplicateId: ingestDuplicateId, _ingestDuplicateTitle: null });
         setTriageRunning(false);
         return;
       }
 
       // 3. Map to TriagePanel shape
+      const dupFromIssue = issue.duplicate_of
+        ? { similarity: Math.round((Number(issue.similarity_score) || 0) * 100), issue: issue.duplicate_of, issueTitle: String(issue.duplicate_of) }
+        : null;
+      const dupFromIngest = ingestIsDuplicate && ingestDuplicateId
+        ? { similarity: Math.round(ingestSimilarity * 100), issue: ingestDuplicateId, issueTitle: ingestDuplicateId }
+        : null;
       setTriage({
         _id: String(issue.id),
         _feedbackId: feedbackId,
@@ -288,20 +312,18 @@ export default function App() {
         reasoning: String(issue.reasoning || ''),
         repro: parseJsonArray(issue.repro_steps),
         labels: parseJsonArray(issue.labels),
-        duplicate: issue.duplicate_of
-          ? {
-              similarity: Math.round((Number(issue.similarity_score) || 0) * 100),
-              issue: issue.duplicate_of,
-              issueTitle: String(issue.duplicate_of),
-            }
-          : null,
+        duplicate: dupFromIssue || dupFromIngest,
+        _isDuplicate: ingestIsDuplicate,
+        _ingestSimilarity: Math.round(ingestSimilarity * 100),
+        _ingestDuplicateId: ingestDuplicateId,
+        _ingestDuplicateTitle: dupMatch?.title || null,
       });
       setTriageRunning(false);
       refreshActivity();
     } catch {
       if (!pollingActive.current) return;
       const sim = simulateTriage(text);
-      setTriage({ ...sim, _id: null, _feedbackId: feedbackId || null });
+      setTriage({ ...sim, _id: null, _feedbackId: feedbackId || null, _isDuplicate: ingestIsDuplicate, _ingestSimilarity: Math.round(ingestSimilarity * 100), _ingestDuplicateId: ingestDuplicateId, _ingestDuplicateTitle: null });
       setTriageRunning(false);
     }
   };
@@ -345,7 +367,7 @@ export default function App() {
     } catch { /* non-fatal — keep temp ID */ }
 
     setBoard((b) => {
-      const card = { id: cardId, title: t.title, severity: t.severity, component: t.component, confidence: t.confidence, time: 'now' };
+      const card = { id: cardId, title: t.title, severity: t.severity, component: t.component, confidence: t.confidence, time: 'now', isDuplicate: t._isDuplicate || false, similarity: t._ingestSimilarity || 0 };
       return { ...b, approved: [card, ...b.approved] };
     });
     setTriageOpen(false);
@@ -510,6 +532,10 @@ export default function App() {
       <TriagePanel
         accent={accent} open={triageOpen} running={triageRunning} triage={triage} isMobile={isMobile}
         onClose={closeTriage} onEditTitle={editTitle} onApprove={approve} onReject={reject}
+        isDuplicate={triage?._isDuplicate || false}
+        ingestSimilarity={triage?._ingestSimilarity || 0}
+        ingestDuplicateId={triage?._ingestDuplicateId || null}
+        ingestDuplicateTitle={triage?._ingestDuplicateTitle || null}
       />
 
       {toast && (

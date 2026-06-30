@@ -2,7 +2,7 @@ import { HoverButton, FocusInput } from './Interactive';
 import { sevStyle } from './styles';
 import { sevMeta as metaFn } from './data';
 
-export default function TriagePanel({ accent, open, running, triage, onClose, onEditTitle, onApprove, onReject, isMobile }) {
+export default function TriagePanel({ accent, open, running, triage, onClose, onEditTitle, onApprove, onReject, isMobile, isDuplicate, ingestSimilarity, ingestDuplicateId, ingestDuplicateTitle }) {
   const showResults = open && !running && !!triage;
   const meta = triage ? metaFn(triage.severity) : null;
   const pad = isMobile ? 16 : 22;
@@ -51,6 +51,22 @@ export default function TriagePanel({ accent, open, running, triage, onClose, on
 
           {showResults && (
             <div style={{ padding: pad, display: 'flex', flexDirection: 'column', gap: isMobile ? 18 : 22 }}>
+              {isDuplicate && (
+                <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.55)', borderRadius: 11, padding: '13px 15px' }}>
+                  <span style={{ fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>⚠️</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#7A5C2E' }}>Possible Duplicate Detected</span>
+                    <span style={{ fontSize: 12.5, color: '#8A6A52', lineHeight: 1.4 }}>
+                      This report is {ingestSimilarity}% similar to an existing issue.
+                    </span>
+                    {ingestDuplicateId && (
+                      <span style={{ fontSize: 11.5, fontFamily: "'Geist Mono', monospace", color: '#9A876C' }}>
+                        Duplicate of: {ingestDuplicateTitle || ingestDuplicateId.slice(0, 8) + '…'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <FocusInput
                   value={triage.title}
