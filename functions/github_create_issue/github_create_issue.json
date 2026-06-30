@@ -1,0 +1,14 @@
+{
+  "name": "github_create_issue",
+  "description": "Creates a GitHub issue in the configured repo using a token stored in the secrets table.",
+  "type": "API",
+  "visibility": "POD",
+  "code": { "$file": "code.py" },
+  "permissions": { "grants": [
+    {
+      "resource_type": "datastore_table",
+      "resource_name": "secrets",
+      "permission_ids": ["datastore.table.read", "datastore.record.read"]
+    }
+  ] }
+}
