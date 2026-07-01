@@ -36,6 +36,11 @@ async def slack_notify(ctx: FunctionContext, data: SlackNotifyInput) -> SlackNot
             operation='chat_post_message',
             payload={'body': {'channel': data.channel, 'text': text}},
         )
-        return SlackNotifyResult(ok=bool(result.ok), channel=data.channel, ts=result.ts)
+        # OperationExecutionResponse has no .ok/.ts; success = no exception raised
+        payload = getattr(result, 'data', None) or getattr(result, 'output', None) or {}
+        ts = getattr(result, 'ts', None)
+        if ts is None and isinstance(payload, dict):
+            ts = payload.get('ts')
+        return SlackNotifyResult(ok=True, channel=data.channel, ts=ts)
     except Exception as e:
         return SlackNotifyResult(ok=False, channel=data.channel, error=str(e))
