@@ -7,32 +7,28 @@ from lemma_sdk import FunctionContext, Pod
 
 class MarkDuplicateInput(BaseModel):
     feedback_id: str
-    raw_text: str
-    duplicate_id: str
-    similarity: float
-    explanation: str
+    duplicate_of: str | None = None
+    similarity: float = 0.0
 
 class MarkDuplicateResult(BaseModel):
-    issue_row_id: str
+    issue_id: str
     status: str = 'duplicate'
 
 async def mark_duplicate(ctx: FunctionContext, data: MarkDuplicateInput) -> MarkDuplicateResult:
     pod = Pod.from_env()
-    issue = pod.records.create('issues', {
-        'title': data.raw_text[:90],
-        'severity': 'P3',
-        'component': 'unknown',
-        'repro_steps': [],
-        'labels': ['duplicate', 'auto-flagged'],
-        'reasoning': data.explanation,
-        'confidence': data.similarity,
+    all_issues = pod.records.list('issues', sort=[{'field': 'created_at', 'direction': 'desc'}], limit=20)
+    issue_id = None
+    if hasattr(all_issues, 'items') and all_issues.items:
+        for item in all_issues.items:
+            row = item.to_dict()
+            if str(row.get('feedback_id')) == str(data.feedback_id):
+                issue_id = str(row['id'])
+                break
+    if not issue_id:
+        raise ValueError(f'No issue found for feedback_id {data.feedback_id}')
+    pod.records.update('issues', issue_id, {
         'status': 'duplicate',
-        'feedback_id': data.feedback_id,
+        'similarity_score': data.similarity,
     })
-    pod.records.create('operator_runs', {
-        'action': 'duplicate_marked',
-        'detail': data.explanation,
-        'feedback_id': data.feedback_id,
-        'issue_id': issue.id,
-    })
-    return MarkDuplicateResult(issue_row_id=issue.id, status='duplicate')
+    pod.records.create('operator_runs', {'action': 'duplicate_found', 'issue_id': issue_id})
+    return MarkDuplicateResult(issue_id=issue_id, status='duplicate')

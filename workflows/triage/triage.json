@@ -1,6 +1,6 @@
 {
   "name": "triage",
-  "description": "Triages incoming bug reports: deduplicates first, then classifies severity, routes to human approval, and notifies Slack.",
+  "description": "Triages incoming bug reports: classifies severity first, then deduplicates against existing issues, and notifies Slack.",
   "start": {
     "type": "MANUAL"
   },
@@ -22,20 +22,100 @@
       }
     },
     {
+      "id": "triage_agent",
+      "type": "AGENT",
+      "label": "Triage Bug Report",
+      "config": {
+        "agent_name": "triager",
+        "input_mapping": {
+          "message": { "type": "expression", "value": "intake.raw_text" },
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" }
+        }
+      }
+    },
+    {
+      "id": "check_triage_status",
+      "type": "DECISION",
+      "label": "Triage succeeded?",
+      "config": {
+        "rules": [
+          {
+            "condition": "triage_agent.error != null",
+            "next_node_id": "triage_agent_retry"
+          }
+        ]
+      }
+    },
+    {
+      "id": "triage_agent_retry",
+      "type": "AGENT",
+      "label": "Triage Bug Report (retry)",
+      "config": {
+        "agent_name": "triager",
+        "input_mapping": {
+          "message": { "type": "expression", "value": "intake.raw_text" },
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" }
+        }
+      }
+    },
+    {
+      "id": "fetch_candidates",
+      "type": "FUNCTION",
+      "label": "Fetch Dedup Candidates",
+      "config": {
+        "function_name": "fetch_candidates",
+        "input_mapping": {
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" }
+        }
+      }
+    },
+    {
       "id": "dedup_check",
       "type": "AGENT",
       "label": "Check for Duplicates",
       "config": {
         "agent_name": "dedup-confirmer",
         "input_mapping": {
-          "raw_text": {
-            "type": "expression",
-            "value": "intake.raw_text"
-          },
-          "feedback_id": {
-            "type": "expression",
-            "value": "intake.feedback_id"
+          "raw_text": { "type": "expression", "value": "intake.raw_text" },
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" },
+          "candidates": { "type": "expression", "value": "fetch_candidates.candidates_text" }
+        }
+      }
+    },
+    {
+      "id": "check_dedup_status",
+      "type": "DECISION",
+      "label": "Dedup succeeded?",
+      "config": {
+        "rules": [
+          {
+            "condition": "dedup_check.error != null",
+            "next_node_id": "dedup_check_retry"
           }
+        ]
+      }
+    },
+    {
+      "id": "dedup_check_retry",
+      "type": "AGENT",
+      "label": "Check for Duplicates (retry)",
+      "config": {
+        "agent_name": "dedup-confirmer",
+        "input_mapping": {
+          "raw_text": { "type": "expression", "value": "intake.raw_text" },
+          "feedback_id": { "type": "expression", "value": "intake.feedback_id" },
+          "candidates": { "type": "expression", "value": "fetch_candidates.candidates_text" }
+        }
+      }
+    },
+    {
+      "id": "parse_dedup",
+      "type": "FUNCTION",
+      "label": "Parse Dedup Result",
+      "config": {
+        "function_name": "parse_dedup",
+        "input_mapping": {
+          "answer": { "type": "expression", "value": "dedup_check.answer" }
         }
       }
     },
@@ -46,7 +126,7 @@
       "config": {
         "rules": [
           {
-            "condition": "dedup_check.answer.is_duplicate && dedup_check.answer.similarity >= `0.7`",
+            "condition": "parse_dedup.is_duplicate == `true`",
             "next_node_id": "mark_duplicate"
           }
         ]
@@ -60,43 +140,8 @@
         "function_name": "mark_duplicate",
         "input_mapping": {
           "feedback_id": { "type": "expression", "value": "intake.feedback_id" },
-          "raw_text": { "type": "expression", "value": "intake.raw_text" },
-          "duplicate_id": { "type": "expression", "value": "dedup_check.answer.duplicate_id" },
-          "similarity": { "type": "expression", "value": "dedup_check.answer.similarity" },
-          "explanation": { "type": "expression", "value": "dedup_check.answer.explanation" }
-        }
-      }
-    },
-    {
-      "id": "triage_agent",
-      "type": "AGENT",
-      "label": "Triage Bug Report",
-      "config": {
-        "agent_name": "triager",
-        "input_mapping": {
-          "message": {
-            "type": "expression",
-            "value": "intake.raw_text"
-          },
-          "feedback_id": {
-            "type": "expression",
-            "value": "intake.feedback_id"
-          }
-        }
-      }
-    },
-    {
-      "id": "approval",
-      "type": "FORM",
-      "label": "Human Approval",
-      "config": {
-        "input_schema": {
-          "type": "object",
-          "properties": {
-            "decision": { "type": "string", "enum": ["approve", "reject"] },
-            "note": { "type": "string" }
-          },
-          "required": ["decision"]
+          "duplicate_of": { "type": "expression", "value": "parse_dedup.duplicate_id" },
+          "similarity": { "type": "expression", "value": "parse_dedup.similarity" }
         }
       }
     },
@@ -107,11 +152,11 @@
       "config": {
         "function_name": "slack_notify",
         "input_mapping": {
-          "issue_id": { "type": "expression", "value": "triage_agent.output.issue_id" },
-          "severity": { "type": "expression", "value": "triage_agent.output.severity" },
-          "title": { "type": "expression", "value": "triage_agent.output.title" },
+          "issue_id": { "type": "expression", "value": "intake.feedback_id" },
+          "severity": { "type": "literal", "value": "P2" },
+          "title": { "type": "expression", "value": "intake.raw_text" },
           "approver": { "type": "literal", "value": "shettyharsha989@gmail.com" },
-          "decision": { "type": "expression", "value": "approval.decision" },
+          "decision": { "type": "literal", "value": "pending" },
           "channel": { "type": "literal", "value": "bug-triage" }
         }
       }
@@ -123,14 +168,21 @@
     }
   ],
   "edges": [
-    { "id": "e0", "source": "intake", "target": "dedup_check" },
-    { "id": "e1", "source": "dedup_check", "target": "is_dup" },
-    { "id": "e2", "source": "is_dup", "target": "triage_agent" },
-    { "id": "e2b", "source": "is_dup", "target": "mark_duplicate" },
-    { "id": "e3", "source": "mark_duplicate", "target": "end" },
-    { "id": "e4", "source": "triage_agent", "target": "approval" },
-    { "id": "e5", "source": "approval", "target": "notify_slack" },
-    { "id": "e6", "source": "notify_slack", "target": "end" }
+    { "id": "e0",   "source": "intake",             "target": "triage_agent" },
+    { "id": "e1",   "source": "triage_agent",        "target": "check_triage_status" },
+    { "id": "r_e1", "source": "check_triage_status", "target": "fetch_candidates" },
+    { "id": "r_e2", "source": "check_triage_status", "target": "triage_agent_retry" },
+    { "id": "r_e3", "source": "triage_agent_retry",  "target": "fetch_candidates" },
+    { "id": "e_fc", "source": "fetch_candidates",    "target": "dedup_check" },
+    { "id": "e2",   "source": "dedup_check",          "target": "check_dedup_status" },
+    { "id": "r_e4", "source": "check_dedup_status",  "target": "parse_dedup" },
+    { "id": "r_e5", "source": "check_dedup_status",  "target": "dedup_check_retry" },
+    { "id": "r_e6", "source": "dedup_check_retry",   "target": "parse_dedup" },
+    { "id": "e_pd", "source": "parse_dedup",          "target": "is_dup" },
+    { "id": "e3",   "source": "is_dup",               "target": "notify_slack" },
+    { "id": "e3b",  "source": "is_dup",               "target": "mark_duplicate" },
+    { "id": "e4",   "source": "mark_duplicate",       "target": "notify_slack" },
+    { "id": "e5",   "source": "notify_slack",         "target": "end" }
   ],
   "visibility": "POD"
 }

@@ -89,35 +89,6 @@ const parseJsonArray = (val) => {
   return [];
 };
 
-const simulateTriage = (text) => {
-  const t = text.toLowerCase();
-  const sev =
-    /payment|checkout|purchase|stripe|crash|data.loss|outage/.test(t) ? 'P0' :
-    /auth|login|sign.?in|oauth|session|token|upload|500|error/.test(t) ? 'P1' :
-    /export|import|pagination|search|slow|broken|missing/.test(t) ? 'P2' : 'P3';
-  const comp =
-    /checkout|cart|payment|stripe|promo/.test(t) ? 'Payments' :
-    /auth|login|oauth|session|token/.test(t) ? 'Auth' :
-    /upload|file|storage|s3/.test(t) ? 'Uploads' :
-    /search|pagination|filter/.test(t) ? 'Search' :
-    /export|csv|import/.test(t) ? 'Export' :
-    /dark.?mode|theme|tooltip|avatar|ui|layout/.test(t) ? 'UI' : 'Core';
-  const title = deriveTitle(text);
-  return {
-    title,
-    severity: sev,
-    component: comp,
-    confidence: 72,
-    reasoning: `Based on the report, this appears to be a ${sev === 'P0' ? 'critical' : sev === 'P1' ? 'high-severity' : sev === 'P2' ? 'medium' : 'low'} issue in the ${comp} area. Confidence is moderate because this is a simulated triage (agent quota exceeded).`,
-    repro: [
-      'Reproduce the environment described in the report',
-      text.trim().slice(0, 120),
-      'Verify the issue is consistently reproducible',
-    ],
-    labels: [comp.toLowerCase(), sev.toLowerCase(), 'bug'],
-    duplicate: null,
-  };
-};
 
 export default function App() {
   const isMobile = useBreakpoint();
@@ -138,6 +109,7 @@ export default function App() {
 
   const [ghPopover, setGhPopover] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dedupResult, setDedupResult] = useState(null);
 
   const toastTimer = useRef(null);
   const dragRef = useRef(null);
@@ -228,6 +200,30 @@ export default function App() {
 
   const editTitle = (e) => setTriage((t) => ({ ...t, title: e.target.value }));
 
+  const buildTriageState = (iss, feedbackId, text) => {
+    const dupOf = iss.duplicate_of || null;
+    const isDup = iss.status === 'duplicate' || !!dupOf;
+    const dup = isDup
+      ? { similarity: Math.round((Number(iss.similarity_score) || 0) * 100), issue: dupOf || iss.id, issueTitle: String(dupOf || iss.id) }
+      : null;
+    return {
+      _id: String(iss.id),
+      _feedbackId: feedbackId,
+      title: String(iss.title || deriveTitle(text)),
+      severity: String(iss.severity || 'P3'),
+      component: String(iss.component || ''),
+      confidence: Math.round((Number(iss.confidence) || 0) * 100),
+      reasoning: String(iss.reasoning || ''),
+      repro: parseJsonArray(iss.repro_steps),
+      labels: parseJsonArray(iss.labels),
+      duplicate: dup,
+      _isDuplicate: isDup,
+      _ingestSimilarity: dup ? dup.similarity : 0,
+      _ingestDuplicateId: dupOf,
+      _ingestDuplicateTitle: null,
+    };
+  };
+
   const runTriageWorkflow = async (text, existingFeedbackId = null) => {
     if (!text.trim()) return;
 
@@ -238,21 +234,20 @@ export default function App() {
     currentRunRef.current = { runId: null, approvalNodeId: null };
 
     let feedbackId = existingFeedbackId;
-    let ingestIsDuplicate = false;
-    let ingestSimilarity = 0;
-    let ingestDuplicateId = null;
 
     try {
-      // 1. Route through bug_ingest function — fires DATASTORE_EVENT on the triage workflow
+      // 1. Submit to bug_ingest — creates feedback record and starts triage workflow
       if (!feedbackId) {
         const fb = await lemmaClient.functions.runs.create('bug_ingest', {
           input: { raw_text: text.trim(), source: 'manual' },
         });
+        console.log('DEBUG fb full response:', JSON.stringify(fb));
+        console.log('DEBUG fb.output:', fb.output);
+        console.log('DEBUG fb.output_data:', fb.output_data);
         const out = fb.output_data || fb.output || {};
+        console.log('DEBUG out:', out);
         feedbackId = String(out.feedback_id || fb.id);
-        ingestIsDuplicate = out.is_duplicate === 'yes' || out.is_duplicate === true;
-        ingestSimilarity = Number(out.similarity) || 0;
-        ingestDuplicateId = out.duplicate_id || null;
+        console.log('DEBUG feedbackId set to:', feedbackId);
         setFeedback((prev) => [{
           id: feedbackId,
           source: 'manual',
@@ -262,9 +257,9 @@ export default function App() {
         }, ...prev]);
       }
 
-      // 2. Poll the issues table for the triage result (up to 2 min, every 3s)
+      // 2. Poll for the issue row written by the triager (up to 10 min, every 3s)
       let issue = null;
-      const deadline = Date.now() + 120_000;
+      const deadline = Date.now() + 600_000;
       while (pollingActive.current && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 3000));
         const res = await lemmaClient.records.list('issues', {
@@ -273,58 +268,55 @@ export default function App() {
         });
         const items = res.items || res || [];
         issue = items.find((r) => String(r.feedback_id) === feedbackId);
-        const dupMatch = ingestDuplicateId ? items.find((r) => String(r.id) === ingestDuplicateId) : null;
         if (issue) break;
-      }
-
-      // Persist duplicate info from ingest onto the issue record
-      if (ingestIsDuplicate && issue) {
-        lemmaClient.records.update('issues', String(issue.id), {
-          duplicate_of: ingestDuplicateId,
-          similarity_score: ingestSimilarity,
-        }).catch(() => {});
       }
 
       if (!pollingActive.current) return;
 
       if (!issue) {
-        // Timeout — fall back to simulated triage
-        const sim = simulateTriage(text);
-        setTriage({ ...sim, _id: null, _feedbackId: feedbackId, _isDuplicate: ingestIsDuplicate, _ingestSimilarity: Math.round(ingestSimilarity * 100), _ingestDuplicateId: ingestDuplicateId, _ingestDuplicateTitle: null });
         setTriageRunning(false);
+        setTriageOpen(false);
+        flashToast('no', 'Triage timed out — please try again');
         return;
       }
 
-      // 3. Map to TriagePanel shape
-      const dupFromIssue = issue.duplicate_of
-        ? { similarity: Math.round((Number(issue.similarity_score) || 0) * 100), issue: issue.duplicate_of, issueTitle: String(issue.duplicate_of) }
-        : null;
-      const dupFromIngest = ingestIsDuplicate && ingestDuplicateId
-        ? { similarity: Math.round(ingestSimilarity * 100), issue: ingestDuplicateId, issueTitle: ingestDuplicateId }
-        : null;
-      setTriage({
-        _id: String(issue.id),
-        _feedbackId: feedbackId,
-        title: String(issue.title || deriveTitle(text)),
-        severity: String(issue.severity || 'P3'),
-        component: String(issue.component || ''),
-        confidence: Math.round((Number(issue.confidence) || 0) * 100),
-        reasoning: String(issue.reasoning || ''),
-        repro: parseJsonArray(issue.repro_steps),
-        labels: parseJsonArray(issue.labels),
-        duplicate: dupFromIssue || dupFromIngest,
-        _isDuplicate: ingestIsDuplicate,
-        _ingestSimilarity: Math.round(ingestSimilarity * 100),
-        _ingestDuplicateId: ingestDuplicateId,
-        _ingestDuplicateTitle: dupMatch?.title || null,
-      });
+      // 3. Show triage result immediately — dedup result may arrive shortly after
+      setTriage(buildTriageState(issue, feedbackId, text));
       setTriageRunning(false);
       refreshActivity();
+
+      // 4. Follow-up poll to catch the dedup result being written
+      if (issue.status !== 'duplicate' && pollingActive.current) {
+        const issueId = String(issue.id);
+        setDedupResult('checking');
+        let foundDuplicate = false;
+        try {
+          for (let i = 0; i < 45 && pollingActive.current; i++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            try {
+              const res = await lemmaClient.records.list('issues', {
+                sort: [{ field: 'created_at', direction: 'desc' }],
+                limit: 20,
+              });
+              const items = res.items || res || [];
+              const updated = items.find((r) => String(r.id) === issueId);
+              if (updated && updated.status === 'duplicate') {
+                foundDuplicate = true;
+                setDedupResult('duplicate');
+                setTriage(buildTriageState(updated, feedbackId, text));
+                break;
+              }
+            } catch { break; }
+          }
+        } finally {
+          if (!foundDuplicate) setDedupResult('clear');
+        }
+      }
     } catch {
       if (!pollingActive.current) return;
-      const sim = simulateTriage(text);
-      setTriage({ ...sim, _id: null, _feedbackId: feedbackId || null, _isDuplicate: ingestIsDuplicate, _ingestSimilarity: Math.round(ingestSimilarity * 100), _ingestDuplicateId: ingestDuplicateId, _ingestDuplicateTitle: null });
       setTriageRunning(false);
+      setTriageOpen(false);
+      flashToast('no', 'Triage timed out — please try again');
     }
   };
 
@@ -546,6 +538,7 @@ export default function App() {
         ingestSimilarity={triage?._ingestSimilarity || 0}
         ingestDuplicateId={triage?._ingestDuplicateId || null}
         ingestDuplicateTitle={triage?._ingestDuplicateTitle || null}
+        dedupResult={dedupResult}
       />
 
       {toast && (

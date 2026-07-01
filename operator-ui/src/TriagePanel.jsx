@@ -2,7 +2,7 @@ import { HoverButton, FocusInput } from './Interactive';
 import { sevStyle } from './styles';
 import { sevMeta as metaFn } from './data';
 
-export default function TriagePanel({ accent, open, running, triage, onClose, onEditTitle, onApprove, onReject, isMobile, isDuplicate, ingestSimilarity, ingestDuplicateId, ingestDuplicateTitle }) {
+export default function TriagePanel({ accent, open, running, triage, onClose, onEditTitle, onApprove, onReject, isMobile, isDuplicate, ingestSimilarity, ingestDuplicateId, ingestDuplicateTitle, dedupResult }) {
   const showResults = open && !running && !!triage;
   const meta = triage ? metaFn(triage.severity) : null;
   const pad = isMobile ? 16 : 22;
@@ -51,17 +51,29 @@ export default function TriagePanel({ accent, open, running, triage, onClose, on
 
           {showResults && (
             <div style={{ padding: pad, display: 'flex', flexDirection: 'column', gap: isMobile ? 18 : 22 }}>
+              {dedupResult === 'checking' && !isDuplicate && (
+                <div style={{ background: '#F3F4F6', border: '1px solid #D1D5DB', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🔍</span>
+                  <span>Checking for duplicates...</span>
+                </div>
+              )}
+              {dedupResult === 'clear' && !isDuplicate && (
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#15803D', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>✓</span>
+                  <span>No duplicates found</span>
+                </div>
+              )}
               {isDuplicate && (
                 <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.55)', borderRadius: 11, padding: '13px 15px' }}>
                   <span style={{ fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>⚠️</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#7A5C2E' }}>Possible Duplicate Detected</span>
                     <span style={{ fontSize: 12.5, color: '#8A6A52', lineHeight: 1.4 }}>
-                      This report is {ingestSimilarity}% similar to an existing issue.
+                      This report may be a duplicate of an existing issue.
                     </span>
                     {ingestDuplicateId && (
                       <span style={{ fontSize: 11.5, fontFamily: "'Geist Mono', monospace", color: '#9A876C' }}>
-                        Duplicate of: {ingestDuplicateTitle || ingestDuplicateId.slice(0, 8) + '…'}
+                        Possible match: #{ingestDuplicateTitle || ingestDuplicateId.slice(0, 8) + '…'}
                       </span>
                     )}
                   </div>
@@ -98,7 +110,7 @@ export default function TriagePanel({ accent, open, running, triage, onClose, on
                 <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'rgba(176,81,62,0.1)', border: '1px solid rgba(176,81,62,0.28)', borderRadius: 11, padding: '13px 15px' }}>
                   <span style={{ color: '#A0432F', fontSize: 15, lineHeight: 1.2, flexShrink: 0 }}>⚠</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#9E4433' }}>{triage.duplicate.similarity}% similar to #{triage.duplicate.issue}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#9E4433' }}>Possible match: #{triage.duplicate.issue}</span>
                     <span style={{ fontSize: 12.5, color: '#8A6A52', lineHeight: 1.4 }}>{triage.duplicate.issueTitle}</span>
                   </div>
                 </div>
